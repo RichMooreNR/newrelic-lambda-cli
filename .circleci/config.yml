@@ -1,0 +1,73 @@
+version: 2
+jobs:
+  test:
+    docker:
+      - image: circleci/python:3.7
+    steps:
+      - checkout
+      - run:
+          name: Run tests
+          command: |
+            sudo pip install -q -r dev-requirements.txt
+            py.test --cov-report=xml --cov=newrelic_lambda_cli tests
+            codecov
+
+  code-style:
+    docker:
+      - image: circleci/python:3.7
+    steps:
+      - checkout
+      - run:
+          name: Check code style
+          command: |
+            sudo pip install -q -U pip
+            sudo pip install -q -U black
+            black --check newrelic_lambda_cli tests
+      - run:
+          name: Check README
+          command: |
+            sudo pip install -q -U setuptools twine wheel
+            python setup.py sdist
+            twine check dist/*
+
+  release:
+    docker:
+      - image: circleci/python:3.7
+    steps:
+      - checkout
+      - run:
+          name: Install release dependencies
+          command: |
+            sudo pip install -q -U pyOpenSSL setuptools twine wheel
+      - run:
+          name: Release package
+          command: |
+            python setup.py sdist
+            twine check dist/*
+            twine upload dist/*
+
+workflows:
+  version: 2
+  all:
+    jobs:
+      - test:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              only: /.*/
+      - code-style:
+          filters:
+            branches:
+              only: /.*/
+            tags:
+              only: /.*/
+      - release:
+          requires:
+            - test
+            - code-style
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v.*/
